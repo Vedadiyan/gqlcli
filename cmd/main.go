@@ -1,48 +1,51 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 
+	"github.com/redis/go-redis/v9"
 	flaggy "github.com/vedadiyan/flaggy/pkg"
-	_ "github.com/vedadiyan/gql/pkg/functions/avg"
-	_ "github.com/vedadiyan/gql/pkg/functions/common"
-	_ "github.com/vedadiyan/gql/pkg/functions/concat"
-	_ "github.com/vedadiyan/gql/pkg/functions/count"
-	_ "github.com/vedadiyan/gql/pkg/functions/first"
-	_ "github.com/vedadiyan/gql/pkg/functions/max"
-	_ "github.com/vedadiyan/gql/pkg/functions/min"
-	_ "github.com/vedadiyan/gql/pkg/functions/mongo"
-	_ "github.com/vedadiyan/gql/pkg/functions/nullifempty"
-	_ "github.com/vedadiyan/gql/pkg/functions/once"
-	_ "github.com/vedadiyan/gql/pkg/functions/redis"
-	_ "github.com/vedadiyan/gql/pkg/functions/selectkey"
-	_ "github.com/vedadiyan/gql/pkg/functions/sum"
-	_ "github.com/vedadiyan/gql/pkg/functions/toarray"
-	_ "github.com/vedadiyan/gql/pkg/functions/tobytes"
-	_ "github.com/vedadiyan/gql/pkg/functions/todouble"
-	_ "github.com/vedadiyan/gql/pkg/functions/toint"
-	_ "github.com/vedadiyan/gql/pkg/functions/tomap"
-	_ "github.com/vedadiyan/gql/pkg/functions/tostring"
-	_ "github.com/vedadiyan/gql/pkg/functions/unwind"
-	_ "github.com/vedadiyan/gql/pkg/functions/uuid"
-	_ "github.com/vedadiyan/gql/pkg/functions/valueof"
+	gqlmongo "github.com/vedadiyan/gql/pkg/functions/mongo"
+	gqlredis "github.com/vedadiyan/gql/pkg/functions/redis"
 	gql "github.com/vedadiyan/gql/pkg/sql"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type Options struct {
-	Query       string `long:"--query" short:"-q" help:"path to file containing the GQL query"`
-	Source      string `long:"--src" short:"-s" help:"path to the data source"`
-	Destination string `long:"--dest" short:"-d" help:"path to destination to save the result"`
-	Help        bool   `long:"--help" short:"-h" help:"displays help"`
+	Query       string  `long:"--query" short:"-q" help:"path to file containing the GQL query"`
+	Source      string  `long:"--src" short:"-s" help:"path to the data source"`
+	Destination string  `long:"--dest" short:"-d" help:"path to destination to save the result"`
+	Redis       *string `long:"--redis" short:"-r" help:"redis connection string"`
+	Mongo       *string `long:"--mongo" short:"-m" help:"mongodb connection string"`
+	Help        bool    `long:"--help" short:"-h" help:"displays help"`
 }
 
-func (options Options) Run() error {
-	if options.Help {
+func (opts Options) Run() error {
+	if opts.Help {
 		flaggy.PrintHelp()
 		return nil
 	}
-	src, err := os.ReadFile(options.Source)
+	if opts.Redis != nil {
+		client := redis.NewClient(&redis.Options{
+			Addr: *opts.Redis,
+		})
+		gqlredis.RegisterConManager(func(connKey string) (*redis.Client, error) {
+			return client, nil
+		})
+	}
+	if opts.Mongo != nil {
+		client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(*opts.Mongo))
+		if err != nil {
+			panic(err)
+		}
+		gqlmongo.RegisterConManager(func(connKey string) (*mongo.Client, error) {
+			return client, nil
+		})
+	}
+	src, err := os.ReadFile(opts.Source)
 	if err != nil {
 		return err
 	}
@@ -51,7 +54,7 @@ func (options Options) Run() error {
 	if err != nil {
 		return err
 	}
-	query, err := os.ReadFile(options.Query)
+	query, err := os.ReadFile(opts.Query)
 	if err != nil {
 		return err
 	}
@@ -68,7 +71,7 @@ func (options Options) Run() error {
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(options.Destination, jsonData, os.ModePerm)
+	err = os.WriteFile(opts.Destination, jsonData, os.ModePerm)
 	if err != nil {
 		return err
 	}
