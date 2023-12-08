@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/redis/go-redis/v9"
@@ -48,6 +49,7 @@ func (opts Options) Run() error {
 				di.AddSinletonWithName[*redis.Client](key, func() (instance *redis.Client, err error) {
 					return client, nil
 				})
+				fmt.Println("redis server added:", value)
 			}
 			gqlredis.RegisterConManager(func(connKey string) (*redis.Client, error) {
 				redisClient, err := di.ResolveWithName[*redis.Client](connKey, nil)
@@ -67,6 +69,7 @@ func (opts Options) Run() error {
 				di.AddSinletonWithName[*mongo.Client](key, func() (instance *mongo.Client, err error) {
 					return client, nil
 				})
+				fmt.Println("mongo server added:", value)
 			}
 			gqlmongo.RegisterConManager(func(connKey string) (*mongo.Client, error) {
 				mongoClient, err := di.ResolveWithName[*mongo.Client](connKey, nil)
